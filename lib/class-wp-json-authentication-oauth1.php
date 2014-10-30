@@ -76,6 +76,10 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 			}
 		}
 
+		//echo '<hr>';
+		//print_r($params);
+		//echo '<hr>';
+
 		$param_names = array(
 			'oauth_consumer_key',
 			'oauth_timestamp',
@@ -506,6 +510,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 	protected function check_oauth_signature( $consumer, $oauth_params, $token = null ) {
 		$http_method = strtoupper( $_SERVER['REQUEST_METHOD'] );
 
+
 		switch ( $http_method ) {
 			case 'GET':
 			case 'HEAD':
@@ -524,7 +529,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 		$base_request_uri = rawurlencode( get_home_url( null, parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ), 'http' ) );
 
 		// get the signature provided by the consumer and remove it from the parameters prior to checking the signature
-		$consumer_signature = rawurldecode( $params['oauth_signature'] );
+		$consumer_signature = rawurlencode(rawurldecode( $params['oauth_signature'] ));
 		unset( $params['oauth_signature'] );
 
 		// normalize parameter key/values
@@ -537,6 +542,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 		$query_string = $this->create_signature_string( $params );
 
 		$token = (array) $token;
+
 		$string_to_sign = $http_method . '&' . $base_request_uri . '&' . $query_string;
 		$key_parts = array(
 			$consumer->secret,
@@ -557,10 +563,12 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 				return new WP_Error( 'json_oauth1_invalid_signature_method', __( 'Signature method is invalid' ), array( 'status' => 401 ) );
 		}
 
-		$signature = base64_encode( hash_hmac( $hash_algorithm, $string_to_sign, $key, true ) );
+		//echo '<br>SERVER STRING:<br>'.$string_to_sign.'<br><br>';
+
+		$signature = rawurlencode(base64_encode( hash_hmac( $hash_algorithm, $string_to_sign, $key, true ) ) );
 
 		if ( ! hash_equals( $signature, $consumer_signature ) ) {
-			return new WP_Error( 'json_oauth1_signature_mismatch', __( 'OAuth signature does not match' ), array( 'status' => 401 ) );
+			return new WP_Error( 'json_oauth1_signature_mismatch', __( 'OAuth signature does not match<br>RECIEVED SIGNATURE  : '.$consumer_signature.'<br>KEY : <b>'.$key.'</b><br>SERVER STRING:<br>'.$string_to_sign.'<br>SERVER SIGNED : '.$signature ), array( 'status' => 401 ) );
 		}
 
 		return true;

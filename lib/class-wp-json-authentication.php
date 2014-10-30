@@ -34,20 +34,27 @@ abstract class WP_JSON_Authentication {
 		$this->should_attempt = false;
 
 		$query = new WP_Query();
-		$consumers = $query->query( array(
+
+		$the_query = array(
 			'post_type' => 'json_consumer',
 			'post_status' => 'any',
-			'meta_query' => array(
-				array(
-					'meta_key' => 'key',
-					'meta_value' => $key,
-				),
-				array(
-					'meta_key' => 'type',
-					'meta_value' => $this->type,
-				),
-			),
-		) );
+			'meta_key' => 'key',
+			'meta_value' => $key//,
+			/* This wasn't working. It always returned the latest consumer. */
+			//'meta_query' => array(
+			//	array(
+			//		'meta_key' => 'key',
+			//		'meta_value' => $key,
+			//		'meta_compare' => '='
+			//	)/*,
+			//	array(
+			//		'meta_key' => 'type',
+			//		'meta_value' => $this->type,
+			//	),*/
+			//),
+		);
+
+		$consumers = $query->query( $the_query );
 
 		$this->should_attempt = true;
 
@@ -68,7 +75,7 @@ abstract class WP_JSON_Authentication {
 		$data = array();
 		$data['post_title'] = $params['name'];
 		$data['post_content'] = $params['description'];
-		unset( $data['post_title'], $data['post_content'] );
+		//unset( $data['post_title'], $data['post_content'] );
 
 		$data['post_type'] = 'json_consumer';
 

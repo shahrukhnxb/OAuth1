@@ -3,6 +3,12 @@ This project is an OAuth 1.0a-compatible authentication method for WordPress.
 This is a separate-but-related project to [WP API][], designed to provide
 authentication suitable for the API.
 
+## Fork Notes (@kosso)
+
+- The WP_Query to get_consumer was failing (returning more than one) if there were more than one consumer registered. 
+-- Edited the query array to just get the consumer by meta_key = key.
+
+
 ## Documentation
 
 Read the [plugin's documentation][docs].
