@@ -4,16 +4,28 @@
 
 wp_oauth_test_auth_flow.php
 
-Description : Simple PHP test to obtain oauth_access_token and oauth_access_token_secret from a Wordpress with WP-API and WP-OAuth plugins (and WP-CLI for OAuth consumer/app creation, for now) installed.
+Description : Simple PHP test to obtain oauth_token and oauth_token_secret (Access tokens) from a Wordpress with WP-API and WP-OAuth plugins (and WP-CLI for OAuth consumer/app creation, for now) installed.
 
 Author      : @kosso
 Date        : Oct 29, 2014
 
-See down below for the actual tests... 
-
-(I should probably split these files up, but this is down and dirty to try and keep thing verbose and simple.)
+// useful for further mods.. 
+http://oauth.googlecode.com/svn/code/php/OAuth.php
+which is used by .. 
+https://developer.yahoo.com/boss/search/boss_api_guide/codeexamples.html#oauth_php
 
 */
+
+session_start();
+
+
+if($_GET['logout']==1){
+
+    session_destroy();
+    header('Location: '.$_SERVER['PHP_SELF']);
+
+}
+
 
 class OAuthWP
 {
@@ -22,10 +34,76 @@ class OAuthWP
     {
         $this->key = $config['key'];
         $this->secret = $config['secret'];
-     	$this->uri_request = $config['uri_request'];
-     	$this->uri_authorize = $config['uri_authorize'];
-     	$this->uri_access = $config['uri_access'];           
+        $this->uri_request = $config['uri_request'];
+        $this->uri_authorize = $config['uri_authorize'];
+        $this->uri_access = $config['uri_access'];     
+        $this->uri_user = $config['uri_user'];           
     }
+
+
+    function getUserProfile($oauth_access_token, $oauth_access_token_secret){
+
+        // Useful reading.. 
+        // Signing Requests using HMAC-SHA1
+        // https://developer.yahoo.com/oauth/guide/oauth-signing.html
+
+        // Signing Requests using PLAINTEXT
+        // https://developer.yahoo.com/oauth/guide/oauth-sign-plaintext.html
+
+        $request_method = 'GET';
+
+        $params = array(
+            "oauth_version" => "1.0",
+            "oauth_nonce" => time(),
+            "oauth_timestamp" => time(),
+            "oauth_consumer_key" => $this->key,
+            "oauth_signature_method" => "HMAC-SHA1",
+            "oauth_token" => $oauth_access_token
+        );
+
+        // ## BUILD OAUTH SIGNATURE
+        
+        // Encode params keys, values, join and then sort.
+        $keys = $this->_urlencode_rfc3986(array_keys($params));
+        $values = $this->_urlencode_rfc3986(array_values($params));
+        $params = array_combine($keys, $values);
+        uksort($params, 'strcmp');
+
+        // Convert params to string 
+        foreach ($params as $k => $v) {$pairs[] = urlencode($k).'='.urlencode($v);}
+        $concatenatedParams = implode('&', $pairs);
+        $concatenatedParams = str_replace('=', '%3D', $concatenatedParams);
+        $concatenatedParams = str_replace('&', '%26', $concatenatedParams);
+
+        // Form base string (first key)
+        $baseString= $request_method."&".urlencode($this->uri_user)."&".$concatenatedParams;
+        // Form secret (second key)
+        $secret = urlencode($this->secret)."&".$oauth_access_token_secret; // concatentate the oauth_token_secret 
+
+        // Make signature and append to params
+        $params['oauth_signature'] = rawurlencode(base64_encode(hash_hmac('sha1', $baseString, $secret, TRUE)));
+        
+        // Re-sort params
+        uksort($params, 'strcmp');
+
+        // Build HTTP Authenticated Request Headers  (not used yet)
+        $post_headers = $this->buildAuthorizationHeader($params);
+
+        // convert params to string 
+        foreach ($params as $k => $v) {$urlPairs[] = $k."=".$v;}
+        $concatenatedUrlParams = implode('&', $urlPairs);
+
+        // form url
+        $url = $this->uri_user."?".$concatenatedUrlParams;
+
+        // Request using cURL
+        $user_object = $this->_http($url, null, $post_headers); 
+
+        return $user_object;
+
+    }
+
+
     function getAccessToken($oauth_token, $oauth_verifier)
     {
         // Default params
@@ -39,9 +117,10 @@ class OAuthWP
             "oauth_verifier" => $oauth_verifier
          );
 
-        $request_method = 'POST';
 
-     	// ## BUILD OAUTH SIGNATURE
+        $request_method = 'POST'; // forced this here for now.
+
+        // ## BUILD OAUTH SIGNATURE
 
         // Encode params keys, values, join and then sort.
         $keys = $this->_urlencode_rfc3986(array_keys($params));
@@ -76,13 +155,13 @@ class OAuthWP
         // Form the final url
         $url = $this->uri_access."?".$concatenatedUrlParams;
 
-        // Send to cURL
+        // Request using cURL
         $access_tokens = $this->_http($url, $concatenatedUrlParams, $post_headers); 
         
         // Extract the values from the query paam
-       	parse_str($access_tokens, $output);
+        parse_str($access_tokens, $output);
 
-       	return $output;
+        return $output;
 
     }
     function getRequestToken()
@@ -99,7 +178,7 @@ class OAuthWP
 
         $request_method = 'POST';
 
-     	// ## BUILD OAUTH SIGNATURE
+        // ## BUILD OAUTH SIGNATURE
         
         // Encode params keys, values, join and then sort.
         $keys = $this->_urlencode_rfc3986(array_keys($params));
@@ -133,7 +212,7 @@ class OAuthWP
         // form url
         $url = $this->uri_request."?".$concatenatedUrlParams;
 
-        // Send to cURL
+        // Request using cURL
         return $this->_http($url, $concatenatedUrlParams, $post_headers); 
 
     }
@@ -150,33 +229,16 @@ class OAuthWP
 
         if(isset($post_data))
         {
-        	//$header[] = 'Content-Type: application/x-www-form-urlencoded';
-
-			if(isset($post_headers))
-        	{
-        		// array_push(array, var)
-        		//curl_setopt($ch, CURLOPT_HTTPHEADER,     $header);
-            	//curl_setopt($ch, CURLOPT_POST,        true);
-            	$header[] = $post_headers;
-        	}        	
-
-        	// echo '<hr>setting post header: ';
-        	// print_r($post_headers);
-        	// echo "\n\n";
-
-        	// worked with this too.... 
-        	curl_setopt($ch, CURLOPT_HTTPHEADER, $post_headers);
-
             curl_setopt($ch, CURLOPT_POST, 1);
             curl_setopt($ch, CURLOPT_POSTFIELDS, urlencode($post_data));
-
-            //if(isset($post_headers))
-        	//{
-        		//$header[]         = 'Content-Type: application/x-www-form-urlencoded';
-        		//curl_setopt($ch, CURLOPT_HTTPHEADER,     $header);
-            	//curl_setopt($ch, CURLOPT_POST,        true);
-        	//}
+            //$header[] = 'Content-Type: application/x-www-form-urlencoded';
         }
+        // ?? hmmm ... 
+        if(isset($post_headers))
+        {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $post_headers);
+        }
+
 
         $response = curl_exec($ch);
         $this->http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -212,7 +274,6 @@ class OAuthWP
 
 }
 
-echo '<pre>';
 
 /*
     // Test OAuth connection.. (to WordPress).
@@ -235,42 +296,78 @@ echo '<pre>';
 
 // Edit the config to your requirements.
 $oauth_config = array(
-				'key' => 'someKeyForYourApp', 
-				'secret'=>'xxxxxxxxxxxxAsecretKeyxxxxxxxxxxxxxxxxxxx',
-                /* TODO: These should actually be 'discovered' from the /wp-json JSON in /authentication->oauth1['request|authorize|access'] ... */
-				'uri_request'=> 'http://yourwordpressdomain.com/oauth1/request',
-				'uri_authorize'=> 'http://yourwordpressdomain.com/oauth1/authorize',
-				'uri_access'=> 'http://yourwordpressdomain.com/oauth1/access'
-			);
+    'key' => 'someKeyForYourApp', 
+    'secret'=>'xxxxxxxxxxxxAsecretKeyxxxxxxxxxxxxxxxxxxx',
+    'wp_api_domain'=>'http://yourdomain.com',
+    /* TODO: These should actually be 'discovered' from the /wp-json JSON in /authentication->oauth1['request|authorize|access'] ... */
+    'uri_request'=> 'http://yourdomain.com/oauth1/request',
+    'uri_authorize'=> 'http://yourdomain.com/oauth1/authorize',
+    'uri_access'=> 'http://yourdomain.com/oauth1/access',
+    'uri_user'=> 'http://yourdomain.com/wp-json/users/me'
+);
 
 
+// Set the OAuth callback to return to this url, no matter where it's run from.
 $callback_protocol = 'http';
 if(isset($_SERVER['HTTPS'])){ $callback_protocol = 'https'; }
-
-// Set the OAuth callback to this script's url, no matter where it's run from.
-$oauth_config['oauth_callback'] = $callback_protocol.'://'.$_SERVER['HTTP_HOST'].'/'.$_SERVER['SCRIPT_NAME'];
-
+$oauth_config['oauth_callback'] = $callback_protocol.'://'.$_SERVER['HTTP_HOST'].$_SERVER['SCRIPT_NAME'];
 
 $auth = new OAuthWP($oauth_config);
 
-// Hit after the oauth_callback, after request token generation. (Also added check to make sure we're coming back from the OAuth server host)
+// Pick up url query params after the oauth_callback after request token generation. (Also added check to make sure we're coming back from the OAuth server host)
 if(isset( $_REQUEST['oauth_token'] ) && isset( $_REQUEST['oauth_verifier'] ) && parse_url($_SERVER['HTTP_REFERER'], PHP_URL_HOST) == parse_url($oauth_config['uri_request'], PHP_URL_HOST)  ){
-	
-    // generate access tokens param string (format: oauth_token=1234567890QWERTYUIOP&oauth_token_secret=xxxxxxxxxxxxxxxxxxxxxxxxxx)
-	$access_tokens = $auth->getAccessToken($_REQUEST['oauth_token'], $_REQUEST['oauth_verifier']);
+    
+    // Generate access tokens param string
+    $access_tokens = $auth->getAccessToken($_REQUEST['oauth_token'], $_REQUEST['oauth_verifier']);
 
-	echo '<h3>Success! Here are your Access Tokens :</h3>';
-	print_r($access_tokens);
+    if(!isset($access_tokens['oauth_token'])){
+        echo '<h3>ERROR: Failed to get access tokens</h3>';
+        print_r($access_token);
+        exit;
+    }
 
-	exit;
+    // Uncomment for more debug
+    
+    // echo '<h3>Success! Here are your Access Tokens :</h3>';
+    // echo 'You should store these in the client somehow. Use a cookie or other storage method you need:<br><br>';
+    // print_r($access_tokens);
+
+    $access_token = $access_tokens['oauth_token'];
+    $access_token_secret = $access_tokens['oauth_token_secret'];
+
+    setcookie("access_token", $access_token, time() + (3600 * 72) );                 // expire in 72 hours...
+    setcookie("access_token_secret", $access_token_secret, time() + (3600 * 72));    // expire in 72 hours...
+
+    $user_object = json_decode($auth->getUserProfile($access_token, $access_token_secret));
+
+    setcookie("user_object", json_encode($user_object),  time() + (3600 * 72));    // expire in 72 hours...
+
+    // Uncomment for more debug
+    // echo '<h3>You appear to be logged in as : '.$user_object->username.'</h3>';
+    // echo '<h5>User_object returned via WP-API</h5>';
+
+    // Send the now logged in user back to where we started...
+    header('Location : '.$_SERVER['PHP_SELF']);
+
+    //exit;
 
 }
 
-// Start OAuth authorisation by obtaining a request token and generating a link to the OAuth server, with a callback here ...
-echo '<a href="'.$oauth_config['uri_authorize'].'?'.$auth->getRequestToken().'&oauth_callback='.urlencode($oauth_config['oauth_callback']).'">AUTHORIZE THIS APP</a>';
+
+if(isset($_COOKIE['access_token']) && isset($_COOKIE['access_token_secret']) && isset($_COOKIE['user_object'])){
+    // Visitor already appears to have the cookies set. 
+    echo '<h3>Logged in as: '.json_decode($_COOKIE['user_object'])->username.'</h3>';
+    echo '<h3><a href="?logout=1">CLICK HERE TO LOG OUT</a></h3>';
+    
+} else {
+    // Not logged in. 
+    // Start OAuth authorisation by obtaining a request token and generating a link to the OAuth server, with a callback here ...
+    echo '<h3><a href="'.$oauth_config['uri_authorize'].'?'.$auth->getRequestToken().'&oauth_callback='.urlencode($oauth_config['oauth_callback']).'">LOGIN USING YOUR '.$oauth_config['wp_api_domain'].' WORDPRESS ACCOUNT</a></h3>';
+    echo 'Uses WP-API and OAuth 1.0a Server for WordPress via https://github.com/WP-API. <br>(Also uses WP-CLI for app consumer setup : http://wp-cli.org/ until plugin has full admin UI)';
 
 
-echo '</pre>';
+}
+
 
 
 ?>
