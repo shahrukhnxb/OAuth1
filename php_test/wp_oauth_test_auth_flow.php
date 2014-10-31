@@ -9,7 +9,14 @@ Description : Simple PHP test to obtain oauth_token and oauth_token_secret (Acce
 Author      : @kosso
 Date        : Oct 29, 2014
 
-// useful for further mods.. 
+// Useful reading.. 
+// Signing Requests using HMAC-SHA1
+// https://developer.yahoo.com/oauth/guide/oauth-signing.html
+
+// Signing Requests using PLAINTEXT
+// https://developer.yahoo.com/oauth/guide/oauth-sign-plaintext.html
+
+// More useful stuff. 
 http://oauth.googlecode.com/svn/code/php/OAuth.php
 which is used by .. 
 https://developer.yahoo.com/boss/search/boss_api_guide/codeexamples.html#oauth_php
@@ -42,13 +49,6 @@ class OAuthWP
 
 
     function getUserProfile($oauth_access_token, $oauth_access_token_secret){
-
-        // Useful reading.. 
-        // Signing Requests using HMAC-SHA1
-        // https://developer.yahoo.com/oauth/guide/oauth-signing.html
-
-        // Signing Requests using PLAINTEXT
-        // https://developer.yahoo.com/oauth/guide/oauth-sign-plaintext.html
 
         $request_method = 'GET';
 
