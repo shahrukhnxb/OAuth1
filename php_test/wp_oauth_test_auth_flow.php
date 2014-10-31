@@ -40,14 +40,6 @@ class OAuthWP
          );
 
         $request_method = 'POST';
-     	// BUILD SIGNATURE
-        // encode params keys, values, join and then sort.
-        $keys = $this->_urlencode_rfc3986(array_keys($params));
-        $values = $this->_urlencode_rfc3986(array_values($params));
-        $params = array_combine($keys, $values);
-        uksort($params, 'strcmp');
-
-        $request_method = 'POST'; // forced this here for now.
 
      	// ## BUILD OAUTH SIGNATURE
 
