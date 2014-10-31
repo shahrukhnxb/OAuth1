@@ -8,6 +8,7 @@ authentication suitable for the API.
 - The WP_Query to get_consumer was failing (returning more than one) if there were more than one consumer registered. 
 -- Edited the query array to just get the consumer by meta_key = key.
 
+- Fixed PHP test.
 
 ## Documentation
 
