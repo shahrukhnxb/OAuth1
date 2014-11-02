@@ -334,13 +334,13 @@ class OAuthWP
 
 // Edit the config to your requirements.
 $oauth_config = array(
-    'key' => 'GgbheDq6t3Mm', 
-    'secret'=>'fPnK83pry1uo0f7YiERqlXwaCXkxQP2TMf4dk3d8bgxJ8lKb',
-    'wp_api_domain'=>'http://crosspo.st',
-    'uri_request'=> 'http://crosspo.st/oauth1/request',
-    'uri_authorize'=> 'http://crosspo.st/oauth1/authorize',
-    'uri_access'=> 'http://crosspo.st/oauth1/access',
-    'uri_user'=> 'http://crosspo.st/wp-json/users/me'
+    'key' => 'someKeyForYourApp', 
+    'secret'=>'xxxxxxxxxxxxAsecretKeyxxxxxxxxxxxxxxxxxxx',
+    'wp_api_domain'=>'http://yourdomain.com',
+    'uri_request'=> 'http://yourdomain.com/oauth1/request',
+    'uri_authorize'=> 'http://yourdomain.com/oauth1/authorize',
+    'uri_access'=> 'http://yourdomain.com/oauth1/access',
+    'uri_user'=> 'http://yourdomain.com/wp-json/users/me'
 );
 
 
