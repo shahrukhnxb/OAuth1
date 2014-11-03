@@ -9,10 +9,11 @@ Description : Simple PHP test to obtain oauth_token and oauth_token_secret (Acce
 Author      : @kosso
 Date        : Oct 29, 2014
 
-// useful for further mods.. 
-http://oauth.googlecode.com/svn/code/php/OAuth.php
-which is used by .. 
-https://developer.yahoo.com/boss/search/boss_api_guide/codeexamples.html#oauth_php
+
+
+// Useful reading.. 
+// Signing Requests using HMAC-SHA1
+// https://developer.yahoo.com/oauth/guide/oauth-signing.html
 
 */
 
@@ -46,14 +47,6 @@ class OAuthWP
 
 
     function oauthRequest($url, $method, $oauth_access_token, $oauth_access_token_secret, $request_params = null){
-
-        // Useful reading.. 
-        // Signing Requests using HMAC-SHA1
-        // https://developer.yahoo.com/oauth/guide/oauth-signing.html
-
-        // Signing Requests using PLAINTEXT
-        // https://developer.yahoo.com/oauth/guide/oauth-sign-plaintext.html
-
     
         $params = array(
             "oauth_version" => "1.0",
@@ -66,7 +59,7 @@ class OAuthWP
 
         // ## BUILD OAUTH SIGNATURE
 
-
+        // Add extra params if present
         if($request_params!=null){
             foreach ($request_params as $k => $v){
                     $params[$k] = $v;
@@ -74,8 +67,6 @@ class OAuthWP
             uksort($params, 'strcmp');
         }
 
-
-        
         // Encode params keys, values, join and then sort.
         $keys = $this->_urlencode_rfc3986(array_keys($params));
         $values = $this->_urlencode_rfc3986(array_values($params));
@@ -91,14 +82,8 @@ class OAuthWP
         // Form base string (first key)
         $baseString= $method."&".urlencode($url)."&".$concatenatedParams;
 
-
         // Form secret (second key)
         $secret = urlencode($this->secret)."&".$oauth_access_token_secret; // concatentate the oauth_token_secret 
-
-        echo '<h3>client is using secret : '.$secret.'</h3>';
-
-        
-
 
         // Make signature and append to params
         $params['oauth_signature'] = rawurlencode(base64_encode(hash_hmac('sha1', $baseString, $secret, TRUE)));
@@ -106,14 +91,12 @@ class OAuthWP
         // Re-sort params
         uksort($params, 'strcmp');
 
-
         // Build HTTP Authenticated Request Headers  (not used yet)
         $post_headers = $this->buildAuthorizationHeader($params);
 
-        echo '<br>BASE STRING:<br><br>'.$baseString.'<br><br>PARAMS:<br><br>';
-       // echo '<br>'.$post_headers.'<br>';
-
-        print_r($params);
+        // echo '<br>BASE STRING:<br><br>'.$baseString.'<br><br>PARAMS:<br><br>';
+        // echo '<br>'.$post_headers.'<br>';
+        // print_r($params);
 
         // convert params to string 
         foreach ($params as $k => $v) {$urlPairs[] = $k."=".$v;}
@@ -121,8 +104,6 @@ class OAuthWP
 
         // form url
         $final_url = $url."?".$concatenatedUrlParams;
-
-       // echo '<br><br>FINAL URL BEING CALLED BY CLIENT: <br>'.$final_url.'<br>';
 
         // Request using cURL
         $json_response = $this->_http($final_url, $request_params, $post_headers); 
@@ -200,8 +181,7 @@ class OAuthWP
             "oauth_nonce" => time(),
             "oauth_timestamp" => time(),
             "oauth_consumer_key" => $this->key,
-            "oauth_signature_method" => "HMAC-SHA1",
-            "oauth_callback" => "http://microdio.com/test/oauth/test.php"
+            "oauth_signature_method" => "HMAC-SHA1"
          );
 
         $request_method = 'POST';
@@ -257,13 +237,17 @@ class OAuthWP
 
         if(isset($post_data))
         {
-            curl_setopt($ch, CURLOPT_POST, 1);
-            
-            // had to use application/json, since other methods returned a missing callback paameter error.
-            $header[] = 'Content-Type: application/json';
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($post_data));
-            
+            curl_setopt($ch, CURLOPT_POST, 1);            
+            if(isset($post_data->file)){
+                // Media upload
+                $header[] = 'Content-Type: multipart/form-data';
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
+            } else {
+                $header[] = 'Content-Type: application/json';
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $header);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($post_data));
+            }   
         }
 
         // Not being used yet. 
@@ -275,13 +259,10 @@ class OAuthWP
             //curl_setopt($ch, CURLOPT_HTTPHEADER, $post_headers);
         }
 
-
         $response = curl_exec($ch);
         $this->http_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $this->last_api_call = $url;
         curl_close($ch);
-
-        echo '<hr>RESPONSE:<br>'.$response.'<hr>';
 
         return $response;
     }
@@ -393,7 +374,6 @@ if(isset( $_REQUEST['oauth_token'] ) && isset( $_REQUEST['oauth_verifier'] ) && 
 
     echo '<script> window.location = "'.$_SERVER['PHP_SELF'].'";</script>';
 
-
     exit;
 
 }
@@ -404,24 +384,41 @@ if(isset($_COOKIE['access_token']) && isset($_COOKIE['access_token_secret']) && 
     echo '<h3>Logged in as: '.json_decode($_COOKIE['user_object'])->username.'</h3>';
     echo '<h3><a href="?logout=1">CLICK HERE TO LOG OUT</a></h3>';
 
+    // uncomment tests ..
+
+    /*
+    // CREATE NEW ATTACHMENT (Media upload)
+    echo '<h3>Test create new attachment (Media upload)</h3>';
+
+    // set file path and mime type.   
+    $file_data = array(
+        'file' => '@/path/to/a/file.jpg;type=image/jpeg'
+    );
+    // Upload
+    $file_object = json_decode($auth->oauthRequest($oauth_config['wp_api_domain'].'/wp-json/media','POST', $_COOKIE['access_token'], $_COOKIE['access_token_secret'], $file_data));
+
+    echo '<hr><h3>Response </h3>';
+    print_r($file_object);
+    
+    */
 
 
-    echo '<h3>OK.. Now try a post.... </h3>';   
-
-   // $post_data[];
+    /*
+    // CREATE A NEW POST
+    echo '<h3>Test create new post</h3>';   
 
     $post_data = array(
-        'status' => 'publish',
-        'title' => 'Success! It actually worked!',
-        'content_raw' => 'This is a post from a PHP client script running on another domain and server. It uses WP-API/WP-API and WP-API/Outh1.<h4>Pretty Sweet</h4>'
+        //'status' => 'publish',
+        'title' => 'Another test',
+        'content_raw' => 'The quick brown fox jumped over the lazy dogs.'
     );
-
 
     $post_object = json_decode($auth->oauthRequest($oauth_config['wp_api_domain'].'/wp-json/posts','POST', $_COOKIE['access_token'], $_COOKIE['access_token_secret'], $post_data));
 
-    echo '<hr><h3>POST /wp-json/posts Response </h3>';
-
+    echo '<hr><h3>Response:</h3>';
     print_r($post_object);
+    */
+
 
 
     
