@@ -440,7 +440,7 @@ if(isset($_COOKIE['access_token']) && isset($_COOKIE['access_token_secret']) && 
     echo '<pre>';
     echo '<h3>TEST : CREATE NEW ATTACHMENT (Media upload)</h3>';   
     $file_data = array(
-        'file' => '@/home/sites/mobods/htdocs/test/testmp3.mp3;type=audio/mpeg'
+        'file' => '@/path/to/a/file.jpg;type=image/jpeg'
     );
     $file_object = json_decode($auth->oauthRequest($oauth_config['wp_api_domain'].'/wp-json/media','POST', $_COOKIE['access_token'], $_COOKIE['access_token_secret'], $file_data));
     echo '</pre>';
