@@ -5,10 +5,11 @@ authentication suitable for the API.
 
 ## Fork Notes (@kosso)
 
-- The WP_Query to get_consumer was failing (returning more than one) if there were more than one consumer registered. 
--- Edited the query array to just get the consumer by meta_key = key.
+- The WP_Query to get_consumer was failing (returning more than one) if there were more than one consumer registered. So, edited the query array to just get the consumer by meta_key = key. 
 
 - Added full PHP tests for authenticating to a PHP script using OAuth1 and your (self-hosted or .org) Wordpress details. After successfully connecting, further tests can be uncommented out to test media file uploads and creating a new post.
+
+- Last update : Nov 07, 2014.
 
 ## Documentation
 
