@@ -1,6 +1,6 @@
 # OAuth 1.0a Server for WordPress
 This project is an OAuth 1.0a-compatible authentication method for WordPress.
-This is a separate-but-related project to [WP API][], designed to provide
+This is a separate-but-related project to [WP API](https://github.com/WP-API/WP-API), designed to provide
 authentication suitable for the API.
 
 ## Fork Notes (@kosso)
@@ -8,7 +8,7 @@ authentication suitable for the API.
 - The WP_Query to get_consumer was failing (returning more than one) if there were more than one consumer registered. 
 -- Edited the query array to just get the consumer by meta_key = key.
 
-- Fixed PHP test.
+- Added full PHP tests for authenticating to a PHP script using OAuth1 and your (self-hosted or .org) Wordpress details. After successfully connecting, further tests can be uncommented out to test media file uploads and creating a new post.
 
 ## Documentation
 
