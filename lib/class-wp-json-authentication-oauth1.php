@@ -56,15 +56,54 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 			}
 		}
 		return $params;
+	}
 
+	public function retrieve_authorization_headers() {
+		$auth_headers = ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) ? $_SERVER['HTTP_AUTHORIZATION'] : false;
+
+		if ( ! $auth_headers && function_exists( 'apache_request_headers' ) ) {
+			$all_headers = apache_request_headers();
+			$auth_headers = isset( $all_headers['Authorization'] ) ? $all_headers['Authorization'] : false;
+		}
+		return $auth_headers;
 	}
 
 	public function get_parameters( $require_token = true, $extra = array() ) {
+
 		$params = array_merge( $_GET, $_POST );
 		$params = wp_unslash( $params );
 
+		// Check incoming content-type 
+		// Check for raw POST Content-Type: application/json data (requires php://input since PHP 5.6)
+		// and then json_decode it. 
+		if($_SERVER['CONTENT_TYPE']=='application/json'){
+			$raw_post_data_params = json_decode(file_get_contents('php://input'), true);
+			if ( ! empty( $raw_post_data_params ) ) {
+				$raw_post_data_params = wp_unslash( $raw_post_data_params );
+				$params = array_merge( $params, $raw_post_data_params );
+				ksort($params);
+			}
+		}
+		// Check Authorization headers
+		$auth_headers = $this->retrieve_authorization_headers();
+		
+		if ( ! empty( $auth_headers ) ) {
+			$auth_headers = wp_unslash( $auth_headers );
+			// Trim leading spaces
+			$auth_headers = trim( $auth_headers );
+			$auth_header_params = $this->parse_header( $auth_headers );
+
+			if ( ! empty( $auth_header_params ) ) {
+				$params = array_merge( $params, $auth_header_params );
+			}
+		}
+
+		/*
+		// Replaced with retrieve_authorization_headers() 
+
 		if ( ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) ) {
 			$header = wp_unslash( $_SERVER['HTTP_AUTHORIZATION'] );
+
 			// Trim leading spaces
 			$header = trim( $header );
 
@@ -73,6 +112,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 				$params = array_merge( $params, $header_params );
 			}
 		}
+		*/
 
 		$param_names = array(
 			'oauth_consumer_key',
@@ -134,9 +174,6 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 	 * @param WP_User|null Already authenticated user (will be passed through), or null to perform OAuth authentication
 	 * @return WP_User|null|WP_Error Authenticated user on success, null if no OAuth data supplied, error otherwise
 	 */
-
-
-
 	public function authenticate( $user ) {
 		if ( ! empty( $user ) || ! $this->should_attempt ) {
 			return $user;
@@ -146,7 +183,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 		if ( get_query_var( 'json_oauth_route' ) ) {
 			return null;
 		}
-
+		
 		$params = $this->get_parameters();
 
 		if ( ! is_array( $params ) ) {
@@ -221,6 +258,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 				exit;
 
 			case 'request':
+
 				$params = $this->get_parameters( false );
 
 				if ( is_wp_error( $params ) ) {
@@ -229,7 +267,6 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 				if ( empty( $params ) ) {
 					return new WP_Error( 'json_oauth1_missing_parameter', __( 'No OAuth parameters supplied' ), array( 'status' => 400 ) );
 				}
-
 				return $this->generate_request_token( $params );
 
 			case 'access':
@@ -285,7 +322,6 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 	 */
 	public function check_token( $token, $consumer_key ) {
 		$consumer = $this->get_consumer( $consumer_key );
-
 		if ( is_wp_error( $consumer ) ) {
 			return $consumer;
 		}
@@ -315,7 +351,6 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 			$this->remove_request_token( $key );
 			return new WP_Error( 'json_oauth1_expired_token', __( 'OAuth request token has expired' ), array( 'status' => 401 ) );
 		}
-
 		return $data;
 	}
 
@@ -330,7 +365,6 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 		if ( is_wp_error( $consumer ) ) {
 			return $consumer;
 		}
-
 		// Check the OAuth request signature against the current request
 		$result = $this->check_oauth_signature( $consumer, $params );
 		if ( is_wp_error( $result ) ) {
@@ -357,6 +391,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 			'oauth_token_secret' => self::urlencode_rfc3986($data['secret']),
 			'oauth_callback_confirmed' => 'true',
 		);
+
 		return $data;
 	}
 
@@ -427,6 +462,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 		if ( empty( $data ) ) {
 			return null;
 		}
+
 		return $data;
 	}
 
@@ -507,7 +543,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 	 */
 	protected function check_oauth_signature( $consumer, $oauth_params, $token = null ) {
 		$http_method = strtoupper( $_SERVER['REQUEST_METHOD'] );
-		
+
 		switch ( $http_method ) {
 			case 'GET':
 			case 'HEAD':
@@ -526,7 +562,7 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 		$base_request_uri = rawurlencode( get_home_url( null, parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ), 'http' ) );
 
 		// get the signature provided by the consumer and remove it from the parameters prior to checking the signature
-		$consumer_signature = rawurlencode(rawurldecode( $params['oauth_signature'] ));
+		$consumer_signature = rawurldecode( $params['oauth_signature'] );
 		unset( $params['oauth_signature'] );
 
 		// normalize parameter key/values
@@ -539,13 +575,11 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 		$query_string = $this->create_signature_string( $params );
 
 		$token = (array) $token;
-
 		$string_to_sign = $http_method . '&' . $base_request_uri . '&' . $query_string;
 		$key_parts = array(
 			$consumer->secret,
 			( $token ? $token['secret'] : '' )
 		);
-
 		$key = implode( '&', $key_parts );
 
 		switch ($params['oauth_signature_method']) {
@@ -561,10 +595,10 @@ class WP_JSON_Authentication_OAuth1 extends WP_JSON_Authentication {
 				return new WP_Error( 'json_oauth1_invalid_signature_method', __( 'Signature method is invalid' ), array( 'status' => 401 ) );
 		}
 
-		$signature = rawurlencode(base64_encode( hash_hmac( $hash_algorithm, $string_to_sign, $key, true ) ) );
+		$signature = base64_encode( hash_hmac( $hash_algorithm, $string_to_sign, $key, true ) );
 
 		if ( ! hash_equals( $signature, $consumer_signature ) ) {
-			return new WP_Error( 'json_oauth1_signature_mismatch', __( 'OAuth signature does not match<br>RECIEVED SIGNATURE  : '.$consumer_signature.'  ['.urldecode($consumer_signature).']<br>KEY : '.$key.'    <br><br>SERVER STRING:<br>'.$string_to_sign.'<br>'.urldecode(urldecode(urldecode($string_to_sign))).'<br>SERVER SIGNED : '.$signature ), array( 'status' => 401 ) );
+			return new WP_Error( 'json_oauth1_signature_mismatch', __( 'OAuth signature does not match' ), array( 'status' => 401 ) );
 		}
 
 		return true;
